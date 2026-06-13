@@ -1,6 +1,6 @@
 [project]
 name = "gamito"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fully local Gamito meal-planning engine exposed through MCP tools."
 authors = [
     { name = "nerkyzas157", email = "nerijus157@gmail.com" }
@@ -19,6 +19,23 @@ dependencies = [
 [project.scripts]
 gamito = "gamito.cli:main"
 gamito-mcp = "gamito.mcp.server:main"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.0",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "v$version"
+version_provider = "pep621"
+version_files = [
+    "src/gamito/__init__.py:__version__",
+]
+update_changelog_on_bump = true
+changelog_incremental = true
+major_version_zero = true
 
 [build-system]
 requires = ["uv_build>=0.9.15,<0.10.0"]
