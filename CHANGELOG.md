@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated dataset documentation for the refreshed 14,619-recipe CSV.
+- Replaced the salvaged recipe CSV with the refreshed 14,619-recipe / 36-column
+  dataset and updated architecture/retrieval docs with the new size estimates.
+- Documented the current dataset normalization expectations for G1
+  (`total_time`, `ingredients`, and `directions` aliases).
 - Made recipe metadata parsing accept both JSON arrays and Python literal list
-  strings from the salvaged dataset.
+  strings from the refreshed dataset, with regression coverage.
 
 ## [0.1.0] - 2026-06-13
 
