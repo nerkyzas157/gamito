@@ -14,7 +14,7 @@ import pandas as pd
 
 from gamito.db.connection import connect, migrate
 from gamito.mcp.errors import HINTS, err
-from gamito.mcp.tools import edits, feedback, lifecycle, pantry, planning, profiles, recipes
+from gamito.mcp.tools import common, edits, feedback, lifecycle, pantry, planning, profiles, recipes
 from gamito.retrieval.index import LocalRecipeIndex, NoCandidates
 
 
@@ -59,6 +59,23 @@ class McpToolTests(unittest.TestCase):
         self.assertEqual(listed["profiles"][0]["name"], "Tomas")
         self.assertEqual(fetched["allergies"], ["nuts"])
         self.assertIn("beans", updated["text"])
+
+    def test_open_db_auto_migrates_fresh_database(self) -> None:
+        old_db = os.environ.get("GAMITO_DB")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.environ["GAMITO_DB"] = str(Path(tmpdir) / "fresh.db")
+            try:
+                with common.open_db() as conn:
+                    version = conn.execute(
+                        "SELECT max(version) FROM schema_version"
+                    ).fetchone()[0]
+            finally:
+                if old_db is None:
+                    os.environ.pop("GAMITO_DB", None)
+                else:
+                    os.environ["GAMITO_DB"] = old_db
+
+        self.assertEqual(version, 1)
 
     def test_planning_search_edit_shopping_and_feedback_tools(self) -> None:
         profile_id = profiles.save_profile(name="Nerijus", language="en")["profile_id"]

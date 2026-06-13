@@ -279,6 +279,10 @@ def list_custom_recipes(
     if max_total_time_min is not None:
         clauses.append("(total_time_min IS NULL OR total_time_min <= ?)")
         params.append(max_total_time_min)
+    if cuisine and cuisine.strip():
+        wanted = cuisine.strip().lower()
+        clauses.append("cuisines_json LIKE ?")
+        params.append(f'%"{wanted}"%')
     params.append(limit)
     rows = conn.execute(
         f"""
@@ -291,9 +295,6 @@ def list_custom_recipes(
         params,
     )
     recipes = [_decode_recipe(dict(row)) for row in rows]
-    if cuisine:
-        wanted = cuisine.strip().lower()
-        recipes = [recipe for recipe in recipes if wanted in recipe["cuisines"]]
     return recipes
 
 

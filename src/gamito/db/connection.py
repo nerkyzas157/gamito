@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
-DEFAULT_DB_PATH = Path("gamito.db")
+from gamito.config import DB_PATH
+
+DEFAULT_DB_PATH = DB_PATH
 MIGRATIONS_DIR = Path(__file__).resolve().parent
+
+
+def default_db_path() -> Path:
+    """Resolve the default database path shared by CLI, MCP, and library calls."""
+
+    return Path(os.environ.get("GAMITO_DB", str(DB_PATH)))
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
@@ -58,12 +67,12 @@ def migrate(
 
 
 def init_database(
-    db_path: str | Path = DEFAULT_DB_PATH,
+    db_path: str | Path | None = None,
     migrations_dir: str | Path = MIGRATIONS_DIR,
 ) -> int:
     """Open a database, run migrations, and close the connection."""
 
-    conn = connect(db_path)
+    conn = connect(db_path or default_db_path())
     try:
         return migrate(conn, migrations_dir)
     finally:

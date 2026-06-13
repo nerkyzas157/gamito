@@ -202,7 +202,14 @@ def list_plan_meals(conn: sqlite3.Connection, plan_id: str) -> list[dict]:
         SELECT *
         FROM plan_meals
         WHERE plan_id = ?
-        ORDER BY day_number, meal_slot
+        ORDER BY day_number,
+          CASE meal_slot
+            WHEN 'breakfast' THEN 0
+            WHEN 'lunch' THEN 1
+            WHEN 'dinner' THEN 2
+            WHEN 'snack' THEN 3
+            ELSE 99
+          END
         """,
         (plan_id,),
     )
@@ -284,10 +291,20 @@ def list_plans(
                  WHERE r.plan_id = p.plan_id
                ) AS avg_meal_rating,
                (
-                 SELECT group_concat(m.recipe_title, ', ')
-                 FROM plan_meals m
-                 WHERE m.plan_id = p.plan_id
-                 ORDER BY m.day_number, m.meal_slot
+                 SELECT group_concat(ordered.recipe_title, ', ')
+                 FROM (
+                   SELECT m.recipe_title
+                   FROM plan_meals m
+                   WHERE m.plan_id = p.plan_id
+                   ORDER BY m.day_number,
+                     CASE m.meal_slot
+                       WHEN 'breakfast' THEN 0
+                       WHEN 'lunch' THEN 1
+                       WHEN 'dinner' THEN 2
+                       WHEN 'snack' THEN 3
+                       ELSE 99
+                     END
+                 ) AS ordered
                ) AS plan_summary
         FROM meal_plans p
         WHERE {" AND ".join(clauses)}

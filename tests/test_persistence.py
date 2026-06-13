@@ -8,10 +8,12 @@ import unittest
 from pathlib import Path
 
 from gamito.db.connection import connect, current_version, migrate
+from gamito.db.custom_recipes import list_custom_recipes
 from gamito.db.pantry import list_pantry, upsert_pantry_item
 from gamito.db.plans import (
     create_plan,
     get_plan,
+    list_plans,
     load_meal_plan,
     rate_meal,
     record_plan_edit,
@@ -132,6 +134,68 @@ class PersistenceTests(unittest.TestCase):
         ):
             count = self.conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             self.assertEqual(count, 0, table)
+
+    def test_plan_meals_and_summary_use_slot_order(self) -> None:
+        profile_id = create_profile(self.conn, name="Order")
+        dinner = _meal().model_copy(update={"recipe_title": "Dinner"})
+        lunch = _meal().model_copy(
+            update={"meal_slot": MealSlot.LUNCH, "recipe_title": "Lunch"}
+        )
+        plan_id = create_plan(
+            self.conn,
+            profile_id=profile_id,
+            num_days=1,
+            meals_per_day=2,
+            total_budget_eur=10,
+            servings=2,
+            meals=[dinner, lunch],
+        )
+
+        stored = get_plan(self.conn, plan_id)
+        listed = list_plans(self.conn, profile_id=profile_id)
+
+        self.assertEqual(
+            [meal["recipe_title"] for meal in stored["meals"]],
+            ["Lunch", "Dinner"],
+        )
+        self.assertEqual(listed[0]["plan_summary"], "Lunch, Dinner")
+
+    def test_custom_recipe_cuisine_filter_applies_before_limit(self) -> None:
+        now = "2026-01-01T00:00:00+00:00"
+        rows = [
+            (
+                "custom_mexican",
+                "Newest Mexican",
+                '["mexican"]',
+                "2026-01-02T00:00:00+00:00",
+            ),
+            (
+                "custom_italian",
+                "Older Italian",
+                '["italian"]',
+                now,
+            ),
+        ]
+        self.conn.executemany(
+            """
+            INSERT INTO custom_recipes (
+              recipe_id, title, cuisines_json, ingredients_json,
+              directions_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, '[]', '[]', ?, ?)
+            """,
+            [
+                (recipe_id, title, cuisines, now, updated_at)
+                for recipe_id, title, cuisines, updated_at in rows
+            ],
+        )
+
+        recipes = list_custom_recipes(self.conn, cuisine="italian", limit=1)
+
+        self.assertEqual(
+            [recipe["recipe_id"] for recipe in recipes],
+            ["custom_italian"],
+        )
 
     def test_survey_tag_mapping_cases(self) -> None:
         cases = [

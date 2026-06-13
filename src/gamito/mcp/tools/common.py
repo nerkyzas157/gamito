@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from gamito.config import DB_PATH
-from gamito.db.connection import connect
+from gamito.db.connection import connect, default_db_path, migrate
 from gamito.db.plans import get_plan, load_meal_plan
 from gamito.db.profiles import get_profile
 from gamito.mcp.errors import err
@@ -25,7 +23,7 @@ from gamito.rendering.compact import render_compact_plan
 def configured_db_path() -> Path:
     """Resolve the database path at call time for tests and MCP hosts."""
 
-    return Path(os.environ.get("GAMITO_DB", str(DB_PATH)))
+    return default_db_path()
 
 
 @contextmanager
@@ -34,6 +32,7 @@ def open_db() -> Iterator[sqlite3.Connection]:
 
     conn = connect(configured_db_path())
     try:
+        migrate(conn)
         yield conn
     finally:
         conn.close()

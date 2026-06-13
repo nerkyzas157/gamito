@@ -23,7 +23,7 @@ def main() -> None:
     db_init.add_argument(
         "--db",
         default=None,
-        help="SQLite database path (default: ./gamito.db)",
+        help="SQLite database path (default: project gamito.db or GAMITO_DB)",
     )
     custom_parser = subparsers.add_parser("custom-recipes", help="custom recipe batch commands")
     custom_subparsers = custom_parser.add_subparsers(dest="custom_command")
@@ -42,18 +42,18 @@ def main() -> None:
         return
 
     if args.command == "db" and args.db_command == "init":
-        from gamito.db.connection import DEFAULT_DB_PATH, init_database
+        from gamito.db.connection import default_db_path, init_database
 
-        db_path = Path(args.db) if args.db else DEFAULT_DB_PATH
+        db_path = Path(args.db) if args.db else default_db_path()
         version = init_database(db_path)
         print(f"Initialized {db_path} at schema version {version}.")
         return
 
     if args.command == "custom-recipes":
-        from gamito.db.connection import DEFAULT_DB_PATH, connect, migrate
+        from gamito.db.connection import connect, default_db_path, migrate
         from gamito.db.custom_recipes import add_recipe, list_custom_recipes, reembed_all
 
-        db_path = Path(args.db) if args.db else DEFAULT_DB_PATH
+        db_path = Path(args.db) if args.db else default_db_path()
         conn = connect(db_path)
         try:
             migrate(conn)
