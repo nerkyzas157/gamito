@@ -27,7 +27,7 @@ dev = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.0"
+version = "0.2.0"
 tag_format = "v$version"
 version_provider = "pep621"
 version_files = [
@@ -35,6 +35,7 @@ version_files = [
 ]
 update_changelog_on_bump = true
 changelog_incremental = true
+changelog_format = "keep_a_changelog"
 major_version_zero = true
 
 [build-system]
