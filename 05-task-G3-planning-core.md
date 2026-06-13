@@ -123,13 +123,13 @@ class NoNetwork(unittest.TestCase):
 
 ### Phase G3 — Planning Core (2–3 days) — P0
 
-- [ ] Port graph + nodes per §10 (budget, assignment, validator, shopping)
+- [x] Port graph + nodes per §10 (budget, assignment, validator, shopping)
       wired to `LocalRecipeIndex` + SQLite persistence
-- [ ] Rendering: ported full formatter + EN label tables + `compact.py`
-- [ ] Seeded determinism (`GAMITO_SEED`)
-- [ ] **No-network proof test**: monkeypatch `socket.socket` to raise → full
+- [x] Rendering: ported full formatter + EN label tables + `compact.py`
+- [x] Seeded determinism (`GAMITO_SEED`)
+- [x] **No-network proof test**: monkeypatch `socket.socket` to raise → full
       profile → plan → shopping list run passes airgapped
-- [ ] Ported planning tests green (leftover routing, distinct-recipe
+- [x] Ported planning tests green (leftover routing, distinct-recipe
       enforcement, replan exclusion, budget tolerance, variety collapse)
 
 **Accept**: 3-day × 3-meal plan < 2 s on the laptop; old repo can be archived.
