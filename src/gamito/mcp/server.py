@@ -1,13 +1,14 @@
-"""MCP server entry point placeholder.
-
-Phase G4 wires FastMCP tools here. G0 keeps the console script importable so a
-fresh `uv sync` validates package metadata.
-"""
+"""FastMCP stdio server entry point for Gamito tools."""
 
 from __future__ import annotations
 
+from gamito.mcp.app import mcp
+
+# Importing the package registers every @tool wrapper on the shared FastMCP app.
+import gamito.mcp.tools  # noqa: F401
+
 
 def main() -> None:
-    """Start the MCP server once the G4 tool layer exists."""
+    """Start the MCP server over stdio."""
 
-    raise SystemExit("gamito-mcp is implemented in Phase G4.")
+    mcp.run(transport="stdio")

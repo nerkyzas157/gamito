@@ -154,7 +154,9 @@ def make_meal_key(day_number: int, meal_slot: MealSlot | str) -> str:
     """Return the canonical state key for a meal slot."""
 
     slot = meal_slot.value if isinstance(meal_slot, MealSlot) else str(meal_slot)
-    return f"day_{day_number}:{slot}"
+    from gamito.mcp.slots import slot_key
+
+    return slot_key(day_number, slot)
 
 
 def parse_json_list(value: Any) -> list[Any]:
