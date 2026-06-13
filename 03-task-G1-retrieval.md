@@ -20,14 +20,18 @@
 
 ### 7.2 Index build (`scripts/build_local_index.py`)
 
-1. Load `recipes_dataset.csv`; optional `feature_coverage ≥ 0.5` filter.
+1. Load `recipes_dataset.csv` (14,619 rows, 36 columns); optional
+   `feature_coverage ≥ 0.5` filter.
 2. Build embedding text per recipe — same recipe as the old ingest script:
    `title + cuisines + courses + tastes + tools + ingredients + directions[:500]`.
 3. Encode in batches (CPU, resumable, progress bar) → `embeddings.npy`
    (float32, L2-normalised rows, so cosine = dot product).
 4. Write `metadata.parquet` — every filterable/displayable column, including
-   pre-parsed list columns (`cuisine_list`, `kitchen_tools`) and the heavy JSON
-   strings (`ingredients_json`, `directions_json`, `nutrition_per_serving_json`).
+   normalized aliases (`total_time` → `total_time_min`, `ingredients` →
+   `ingredients_json`, `directions` → `directions_json`), pre-parsed list columns
+   (`cuisine_list`, `course_list`, `kitchen_tools`; source values may be JSON
+   arrays or Python literal lists), and the heavy JSON strings
+   (`ingredients_json`, `directions_json`, `nutrition_per_serving_json`).
 5. Write `manifest.json` (model, dims, count, dataset hash) — the index loader
    refuses mismatched manifests (prevents silent stale-index bugs).
 
@@ -132,7 +136,7 @@ ceiling → return `NO_CANDIDATES` with the constraints that emptied the pool
 
 ### 7.4 Why brute force beats a vector DB here
 
-10,667 × 384 float32 = **15.7 MB**. A full exact scan is < 10 ms on 2 vCPUs —
+14,619 × 384 float32 = **21.4 MiB**. A full exact scan is < 10 ms on 2 vCPUs —
 faster than any network hop, zero infrastructure, exact results, trivially
 debuggable, and filter-then-score avoids ANN-with-filters complexity entirely.
 Revisit only if the corpus grows ~50×.

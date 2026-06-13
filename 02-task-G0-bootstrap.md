@@ -16,7 +16,7 @@ adaptations, tests carried), **REWRITE** (concept kept, implementation new),
 
 | Asset | Action | Notes |
 |---|---|---|
-| `data/recipes_dataset.csv` (10,667 enriched recipes, 33 cols) | **COPY** | The single most valuable artifact. Source for the local index build. |
+| `data/recipes_dataset.csv` (14,619 enriched recipes, 36 cols) | **COPY** | The single most valuable artifact. Source for the local index build. |
 | `data/lookups/canonical_prices.parquet` | **COPY** | Powers shopping-list pricing + pantry slow-use categories. |
 | `data/lookups/parsed_name_to_canonical.parquet` | **COPY** | Ingredient → canonical mapping for dedup + pantry. |
 | `data/lookups/canonical_ingredients.parquet`, `parsed_ingredients.parquet`, `usda_nutrients.parquet` | COPY (cold storage `data/provenance/`) | Pipeline intermediates; only needed to re-run enrichment. |

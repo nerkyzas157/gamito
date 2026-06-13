@@ -10,7 +10,8 @@ Gamito's MCP tools.
 Phase G0 starts by salvaging the high-value local artifacts from the old
 `gamito_mvp` project:
 
-- `data/recipes_dataset.csv` has been copied.
+- `data/recipes_dataset.csv` has been copied and currently contains 14,619
+  recipes across 36 columns.
 - `data/lookups/canonical_prices.parquet` and
   `data/lookups/parsed_name_to_canonical.parquet` are expected lookup assets for
   production pricing/canonicalisation, but were not present in the searched

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from enum import StrEnum
 from typing import Any
@@ -157,7 +158,11 @@ def make_meal_key(day_number: int, meal_slot: MealSlot | str) -> str:
 
 
 def parse_json_list(value: Any) -> list[Any]:
-    """Decode list-like metadata values from local recipe metadata."""
+    """Decode list-like metadata values from local recipe metadata.
+
+    The salvaged CSV contains both JSON arrays (``["italian"]``) and Python
+    literal lists (``['main']``), so the parser accepts either format.
+    """
 
     if value is None:
         return []
@@ -167,10 +172,7 @@ def parse_json_list(value: Any) -> list[Any]:
         stripped = value.strip()
         if not stripped:
             return []
-        try:
-            decoded = json.loads(stripped)
-        except json.JSONDecodeError:
-            return [stripped]
+        decoded = _decode_structured_string(stripped)
         return decoded if isinstance(decoded, list) else [decoded]
     return [value]
 
@@ -183,9 +185,21 @@ def parse_json_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
-        try:
-            decoded = json.loads(value)
-        except json.JSONDecodeError:
-            return {}
+        decoded = _decode_structured_string(value.strip())
         return decoded if isinstance(decoded, dict) else {}
     return {}
+
+
+def _decode_structured_string(value: str) -> Any:
+    """Decode JSON first, then safe Python literals for legacy CSV fields."""
+
+    if not value:
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        pass
+    try:
+        return ast.literal_eval(value)
+    except (SyntaxError, ValueError):
+        return value

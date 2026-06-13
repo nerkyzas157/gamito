@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updated dataset documentation for the refreshed 14,619-recipe CSV.
+- Made recipe metadata parsing accept both JSON arrays and Python literal list
+  strings from the salvaged dataset.
+
 ## [0.1.0] - 2026-06-13
 
 ### Added
