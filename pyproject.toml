@@ -1,0 +1,25 @@
+[project]
+name = "gamito"
+version = "0.1.0"
+description = "Fully local Gamito meal-planning engine exposed through MCP tools."
+authors = [
+    { name = "nerkyzas157", email = "nerijus157@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastembed>=0.5",
+    "langgraph>=1.0",
+    "mcp>=1.2",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "pyarrow>=17.0",
+    "pydantic>=2.7",
+]
+
+[project.scripts]
+gamito = "gamito.cli:main"
+gamito-mcp = "gamito.mcp.server:main"
+
+[build-system]
+requires = ["uv_build>=0.9.15,<0.10.0"]
+build-backend = "uv_build"
