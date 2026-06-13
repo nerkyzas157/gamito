@@ -6,3 +6,14 @@ __pycache__/
 .mypy_cache/
 .env
 gamito.db*
+
+00-architecture-and-context.md
+01-mcp-api-spec.md
+02-task-G0-bootstrap.md
+03-task-G1-retrieval.md
+04-task-G2-persistence.md
+05-task-G3-planning-core.md
+06-task-G4-mcp-server.md
+07-task-G5-corrections-and-lifecycle.md
+08-task-G6-hermes-wiring.md
+09-task-G7-benchmark.md
