@@ -10,14 +10,17 @@ Gamito's MCP tools.
 Phase G0 starts by salvaging the high-value local artifacts from the old
 `gamito_mvp` project:
 
-- `data/recipes_dataset.csv` is copied directly when available.
+- `data/recipes_dataset.csv` has been copied.
 - `data/lookups/canonical_prices.parquet` and
   `data/lookups/parsed_name_to_canonical.parquet` are expected lookup assets for
-  production pricing/canonicalisation.
+  production pricing/canonicalisation, but were not present in the searched
+  source tree. See `data/README.md`.
 - Pure code with no cloud dependencies is ported under `src/gamito`.
 
 Run the local test suite with:
 
 ```bash
-make test
+scripts/test
 ```
+
+`make test` is also available on systems with `make` installed.
