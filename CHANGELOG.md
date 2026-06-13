@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Implemented Phase G1 local retrieval with a resumable fastembed index builder,
+  lazy encoder, pandas filters, relaxation diagnostics, golden eval report, and
+  committed `data/index` artifacts.
 - Replaced the salvaged recipe CSV with the refreshed 14,619-recipe / 36-column
   dataset and updated architecture/retrieval docs with the new size estimates.
 - Documented the current dataset normalization expectations for G1
