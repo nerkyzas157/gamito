@@ -107,13 +107,17 @@ def search_recipes(
             require_profile(conn, profile_id)
             ctx = build_user_context(profile_id, conn=conn)
         try:
-            candidates = LocalRecipeIndex.load(INDEX_DIR).search(
+            index = LocalRecipeIndex.load(INDEX_DIR)
+            if include_custom and hasattr(index, "attach_custom_layer"):
+                index.attach_custom_layer(conn)
+            candidates = index.search(
                 query_en,
                 ctx,
                 k=limit,
                 max_time_min=max_total_time_min,
                 max_price_per_serving=max_price_per_serving_eur,
                 course=course,
+                include_custom=include_custom,
             )
         except NoCandidates as exc:
             raise err(
@@ -125,8 +129,6 @@ def search_recipes(
             raise _embedding_error(exc) from exc
 
     cards = [_candidate_card(candidate) for candidate in candidates]
-    if not include_custom:
-        cards = [card for card in cards if card["source"] == "dataset"]
     titles = ", ".join(card["title"] for card in cards[:5]) or "No matching recipes."
     return {"recipes": cards, "text": titles}
 

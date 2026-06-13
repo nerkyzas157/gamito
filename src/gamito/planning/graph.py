@@ -139,6 +139,8 @@ def generate_meal_plan(
         )
         resolved_seed = resolve_seed(seed)
         index = recipe_index or LocalRecipeIndex.load(INDEX_DIR)
+        if hasattr(index, "attach_custom_layer"):
+            index.attach_custom_layer(conn)
         plan = run_planning_graph(
             plan_config=plan_config,
             user_context=user_context,

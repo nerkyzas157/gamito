@@ -22,6 +22,7 @@ from gamito.models.meal import (
 )
 from gamito.models.planning import BudgetMealAllocation, BudgetPlan, PlanConfig
 from gamito.models.profile import UserContext
+from gamito.recommendation.updater import preference_query_suffix
 from gamito.retrieval.filters import RecipeSearchContext
 from gamito.retrieval.index import LocalRecipeIndex, NoCandidates, RecipeCandidate
 
@@ -182,7 +183,9 @@ def _query_for_slot(allocation: BudgetMealAllocation, user_context: UserContext)
     parts.extend(user_context.positive_tags[:5])
     if user_context.dietary_pref:
         parts.append(user_context.dietary_pref)
-    return " ".join(dict.fromkeys(part for part in parts if part))
+    query = " ".join(dict.fromkeys(part for part in parts if part))
+    suffix = preference_query_suffix(user_context.positive_tags)
+    return f"{query} {suffix}".strip()
 
 
 def _search_context(
@@ -375,7 +378,7 @@ def _used_new_recipe_ids(meals: Any) -> set[str]:
     return {
         meal.recipe_id
         for meal in meals
-        if meal.recipe_id and meal.meal_type == MealType.NEW
+        if meal.recipe_id and meal.meal_type != MealType.LEFTOVER
     }
 
 

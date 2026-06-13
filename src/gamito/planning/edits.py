@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,8 @@ def swap_meal(
     old = _meal_for_slot(meals, slot_key)
     ctx = build_user_context(stored["profile_id"], conn=conn)
     index = recipe_index or LocalRecipeIndex.load(index_dir)
+    if hasattr(index, "attach_custom_layer"):
+        index.attach_custom_layer(conn)
     excluded = [meal.recipe_id for meal in meals if meal.recipe_id]
     price_cap = round(max_price_eur / old.servings, 2) if max_price_eur else None
     candidates = index.search(
@@ -97,6 +100,12 @@ def rescale_meal(
         ingredients = [
             ingredient.model_copy(
                 update={
+                    "amount": _scale_amount(ingredient.amount, ratio),
+                    "quantity": (
+                        round(ingredient.quantity * ratio, 4)
+                        if ingredient.quantity is not None
+                        else None
+                    ),
                     "estimated_price_eur": (
                         round(ingredient.estimated_price_eur * ratio, 2)
                         if ingredient.estimated_price_eur is not None
@@ -260,3 +269,26 @@ def _meal_summary(meal: Meal) -> dict[str, Any]:
         "servings": meal.servings,
         "cost_eur": round(meal.estimated_cost_total_eur, 2),
     }
+
+
+_LEADING_NUMBER_RE = re.compile(r"^(\s*)(\d+(?:\.\d+)?|\d+/\d+)(.*)$")
+
+
+def _scale_amount(amount: str | None, ratio: float) -> str | None:
+    if not amount:
+        return amount
+    match = _LEADING_NUMBER_RE.match(amount)
+    if not match:
+        return amount
+    prefix, raw_number, suffix = match.groups()
+    try:
+        if "/" in raw_number:
+            numerator, denominator = raw_number.split("/", maxsplit=1)
+            number = float(numerator) / float(denominator)
+        else:
+            number = float(raw_number)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return amount
+    scaled = round(number * ratio, 2)
+    rendered = str(int(scaled)) if scaled.is_integer() else f"{scaled:g}"
+    return f"{prefix}{rendered}{suffix}"

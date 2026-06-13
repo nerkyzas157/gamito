@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -103,6 +104,10 @@ class LocalRecipeIndex:
         self.manifest = manifest
         model = str(manifest["model"])
         self._encode_fn = encode_fn or (lambda texts: encode(texts, model=model))
+        self._static_metadata = self.metadata.copy()
+        self._static_embeddings = self.embeddings.copy()
+        self._custom_conn: sqlite3.Connection | None = None
+        self._custom_revision: int | None = None
 
     @classmethod
     def load(
@@ -140,6 +145,7 @@ class LocalRecipeIndex:
         exclude_recipe_ids: list[str] | tuple[str, ...] | None = None,
         preferred_cuisines: list[str] | tuple[str, ...] | None = None,
         course: str | None = None,
+        include_custom: bool = True,
     ) -> list[RecipeCandidate]:
         """Search for one query string."""
 
@@ -152,6 +158,7 @@ class LocalRecipeIndex:
             exclude_recipe_ids=exclude_recipe_ids,
             preferred_cuisines=preferred_cuisines,
             course=course,
+            include_custom=include_custom,
         )[0]
 
     def search_many(
@@ -165,6 +172,7 @@ class LocalRecipeIndex:
         exclude_recipe_ids: list[str] | tuple[str, ...] | None = None,
         preferred_cuisines: list[str] | tuple[str, ...] | None = None,
         course: str | None = None,
+        include_custom: bool = True,
     ) -> list[list[RecipeCandidate]]:
         """Encode queries once, filter rows, score survivors, and return top-k."""
 
@@ -172,6 +180,7 @@ class LocalRecipeIndex:
             return [[] for _ in queries]
         if not queries:
             return []
+        self._refresh_custom_if_needed()
 
         query_vectors = np.asarray(self._encode_fn(queries), dtype=np.float32)
         if query_vectors.shape != (len(queries), self.embeddings.shape[1]):
@@ -191,7 +200,10 @@ class LocalRecipeIndex:
         )
         results: list[list[RecipeCandidate]] = []
         for query_vector, search_ctx in zip(query_vectors, contexts, strict=True):
-            outcome = apply_filters_with_relaxation(self.metadata, search_ctx)
+            metadata = self.metadata
+            if not include_custom and "source" in metadata.columns:
+                metadata = metadata[metadata["source"] != "custom"]
+            outcome = apply_filters_with_relaxation(metadata, search_ctx)
             if outcome.candidates.empty:
                 raise NoCandidates(outcome.emptying_constraints)
             rows = outcome.candidates.index.to_numpy()
@@ -210,6 +222,35 @@ class LocalRecipeIndex:
                 ]
             )
         return results
+
+    def attach_custom_layer(self, conn: sqlite3.Connection) -> "LocalRecipeIndex":
+        """Attach SQLite custom recipes and reload them when the revision changes."""
+
+        self._custom_conn = conn
+        self._refresh_custom_if_needed(force=True)
+        return self
+
+    def _refresh_custom_if_needed(self, *, force: bool = False) -> None:
+        if self._custom_conn is None:
+            return
+        from gamito.db.custom_recipes import custom_revision, custom_search_layer
+
+        revision = custom_revision(self._custom_conn)
+        if not force and revision == self._custom_revision:
+            return
+        custom_metadata, custom_embeddings, revision = custom_search_layer(self._custom_conn)
+        if custom_metadata.empty:
+            self.metadata = self._static_metadata.copy()
+            self.embeddings = self._static_embeddings.copy()
+        else:
+            self.metadata = pd.concat(
+                [self._static_metadata, custom_metadata],
+                ignore_index=True,
+                sort=False,
+            )
+            self.metadata = _with_cached_filter_sets(self.metadata.reset_index(drop=True))
+            self.embeddings = np.vstack([self._static_embeddings, custom_embeddings]).astype(np.float32)
+        self._custom_revision = revision
 
     def _candidate_from_row(
         self,
@@ -272,7 +313,7 @@ def _contexts_for_queries(
 def _with_cached_filter_sets(metadata: pd.DataFrame) -> pd.DataFrame:
     cached = metadata.copy()
     for column in ("kitchen_tools", "cuisine_list", "course_list"):
-        if column in cached.columns and f"_{column}_set" not in cached.columns:
+        if column in cached.columns:
             cached[f"_{column}_set"] = cached[column].map(
                 lambda values: frozenset(_normalise_list(values))
             )

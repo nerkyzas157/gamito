@@ -6,7 +6,7 @@ import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
-from gamito.models.meal import MealSlot, MealType, make_meal_key
+from gamito.models.meal import Meal, MealSlot, MealType, make_meal_key
 from gamito.models.planning import (
     BudgetMealAllocation,
     BudgetPlan,
@@ -53,10 +53,14 @@ class BudgetPlannerNode:
             budget_plan = await result if inspect.isawaitable(result) else result
 
         budget_plan = BudgetPlan.model_validate(budget_plan)
+        preserved = _coerce_meals(state.get("preserved_slots", {}))
+        if preserved:
+            budget_plan = _fold_preserved_costs(budget_plan, preserved)
         return {
             "budget_plan": budget_plan,
             "pending_meal_keys": [
                 allocation.key for allocation in budget_plan.allocations
+                if allocation.key not in preserved
             ],
         }
 
@@ -168,6 +172,38 @@ def _rebalance_rounding(
     allocations[-1].budget_eur = round(allocations[-1].budget_eur + delta, 2)
 
 
+def _fold_preserved_costs(
+    budget_plan: BudgetPlan,
+    preserved: dict[str, Meal],
+) -> BudgetPlan:
+    """Reserve known preserved-slot cost and scale the remaining allocations."""
+
+    allocations = [allocation.model_copy(deep=True) for allocation in budget_plan.allocations]
+    remaining = [
+        allocation
+        for allocation in allocations
+        if allocation.key not in preserved and allocation.meal_type != MealType.LEFTOVER
+    ]
+    preserved_cost = 0.0
+    for allocation in allocations:
+        meal = preserved.get(allocation.key)
+        if meal is None:
+            continue
+        allocation.budget_eur = round(meal.estimated_cost_total_eur, 2)
+        allocation.meal_type = meal.meal_type
+        allocation.source_slot_key = meal.source_slot_key
+        preserved_cost += allocation.budget_eur
+
+    current_remaining = round(sum(allocation.budget_eur for allocation in remaining), 2)
+    target_remaining = max(round(budget_plan.total_budget_eur - preserved_cost, 2), 0.0)
+    if current_remaining > 0 and remaining:
+        scale = target_remaining / current_remaining
+        for allocation in remaining:
+            allocation.budget_eur = round(allocation.budget_eur * scale, 2)
+    _rebalance_rounding(allocations, budget_plan.total_budget_eur)
+    return BudgetPlan(allocations=allocations, total_budget_eur=budget_plan.total_budget_eur)
+
+
 def _coerce_plan_config(value: Any) -> PlanConfig:
     return value if isinstance(value, PlanConfig) else PlanConfig.model_validate(value)
 
@@ -176,3 +212,12 @@ def _coerce_user_context(value: Any) -> UserContext:
     return (
         value if isinstance(value, UserContext) else UserContext.model_validate(value)
     )
+
+
+def _coerce_meals(value: Any) -> dict[str, Meal]:
+    if isinstance(value, dict):
+        return {
+            key: meal if isinstance(meal, Meal) else Meal.model_validate(meal)
+            for key, meal in value.items()
+        }
+    return {}

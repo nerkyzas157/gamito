@@ -14,7 +14,7 @@ import pandas as pd
 
 from gamito.db.connection import connect, migrate
 from gamito.mcp.errors import HINTS, err
-from gamito.mcp.tools import edits, feedback, pantry, planning, profiles
+from gamito.mcp.tools import edits, feedback, lifecycle, pantry, planning, profiles, recipes
 from gamito.retrieval.index import LocalRecipeIndex, NoCandidates
 
 
@@ -92,9 +92,80 @@ class McpToolTests(unittest.TestCase):
         self.assertGreaterEqual(len(search["recipes"]), 1)
         self.assertIn("old_meal", swapped)
         self.assertEqual(rescaled["meal"]["servings"], 3)
+        self.assertIn("300 g", rescaled["shopping_list"]["items"][0]["amount"])
         self.assertIn("total_eur", shopping)
         self.assertEqual(rating["rating"], 9)
+        self.assertTrue(any(item["tag"] == "italian" for item in rating["applied"]))
         self.assertEqual(latest["plan_id"], plan_id)
+
+    def test_learning_loop_and_lifecycle_regenerate(self) -> None:
+        profile_id = profiles.save_profile(name="Learner", language="en")["profile_id"]
+        index = _fake_index()
+        with patch("gamito.planning.graph.LocalRecipeIndex.load", return_value=index):
+            generated = planning.generate_meal_plan(profile_id, 30, 2, 1, 2)
+        first_slot = generated["meals"][0]["slot_key"]
+        second_slot = generated["meals"][1]["slot_key"]
+        kept_recipe = generated["meals"][0]["recipe_id"]
+        avoided_recipe = generated["meals"][1]["recipe_id"]
+
+        feedback.rate_meal(generated["plan_id"], first_slot, 9)
+        feedback.rate_meal(generated["plan_id"], second_slot, 2)
+        labelled = lifecycle.label_plan(generated["plan_id"], "Cheap weeknights", True)
+        listed = lifecycle.list_plans(profile_id, favorites_only=True)
+
+        with patch("gamito.planning.lifecycle.LocalRecipeIndex.load", return_value=_fake_index()):
+            regenerated = lifecycle.regenerate_plan(generated["plan_id"])
+
+        by_key = {meal["slot_key"]: meal for meal in regenerated["meals"]}
+        self.assertEqual(labelled["label"], "Cheap weeknights")
+        self.assertEqual(listed["plans"][0]["label"], "Cheap weeknights")
+        self.assertIn(first_slot, regenerated["preserved_slots"])
+        self.assertIn(avoided_recipe, regenerated["avoided_recipe_ids"])
+        self.assertEqual(by_key[first_slot]["recipe_id"], kept_recipe)
+        self.assertNotIn(avoided_recipe, [meal["recipe_id"] for meal in regenerated["meals"]])
+        self.assertIn("Regenerated from", regenerated["text"])
+
+    def test_label_collision_returns_label_taken(self) -> None:
+        profile_id = profiles.save_profile(name="Planner", language="en")["profile_id"]
+        with patch("gamito.planning.graph.LocalRecipeIndex.load", return_value=_fake_index()):
+            first = planning.generate_meal_plan(profile_id, 20, 2, 1, 1)
+            second = planning.generate_meal_plan(profile_id, 20, 2, 1, 1)
+
+        lifecycle.label_plan(first["plan_id"], "Budget")
+        collision = lifecycle.label_plan(second["plan_id"], "Budget")
+
+        self.assertEqual(collision["error_code"], "LABEL_TAKEN")
+
+    def test_custom_recipe_add_search_plan_and_delete_guard(self) -> None:
+        profile_id = profiles.save_profile(name="Cook", language="en")["profile_id"]
+        vector = np.ones((1, 384), dtype=np.float32)
+        with patch("gamito.db.custom_recipes.encode", return_value=vector):
+            added = recipes.add_recipe(
+                title="Mama Beans",
+                ingredient_names=["beans"],
+                ingredient_amounts=["1 can"],
+                directions=["Warm beans."],
+                courses=["main"],
+                cuisines=["comfort"],
+                servings=2,
+                added_by_profile_id=profile_id,
+            )
+
+        recipe_id = added["recipe_id"]
+        index = _custom_ready_index()
+        with patch("gamito.mcp.tools.planning.LocalRecipeIndex.load", return_value=index):
+            found = planning.search_recipes("beans", profile_id=profile_id, limit=3)
+        with patch("gamito.planning.graph.LocalRecipeIndex.load", return_value=_custom_ready_index()):
+            generated = planning.generate_meal_plan(profile_id, 20, 2, 1, 1)
+
+        blocked = recipes.delete_recipe(recipe_id)
+        forced = recipes.delete_recipe(recipe_id, force=True)
+
+        self.assertEqual(found["recipes"][0]["recipe_id"], recipe_id)
+        self.assertEqual(generated["meals"][0]["source"], "custom")
+        self.assertIn("your recipe", generated["text"])
+        self.assertEqual(blocked["error_code"], "RECIPE_IN_USE")
+        self.assertEqual(forced["deleted"], recipe_id)
 
     def test_pantry_update_uses_canonical_slow_use_filter(self) -> None:
         profile_id = profiles.save_profile(name="Mama", language="en")["profile_id"]
@@ -183,6 +254,44 @@ def _index_raising_no_candidates():
             raise NoCandidates(["max_time_min<=5"])
 
     return EmptyIndex()
+
+
+def _custom_ready_index() -> LocalRecipeIndex:
+    metadata = pd.DataFrame(
+        [
+            {
+                "recipe_id": "static_1",
+                "recipe_title": "Plain Rice",
+                "total_time_min": 20,
+                "price_per_serving_eur": 2.0,
+                "est_servings": 2,
+                "is_vegetarian": True,
+                "is_vegan": True,
+                "is_nut_free": True,
+                "is_dairy_free": True,
+                "is_gluten_free": True,
+                "kitchen_tools": [],
+                "cuisine_list": ["plain"],
+                "course_list": ["main"],
+                "source": "dataset",
+                "ingredients_json": json.dumps(
+                    [{"name": "rice", "amount": "200 g", "canonical": "rice"}]
+                ),
+                "directions_json": json.dumps(["Cook rice."]),
+                "nutrition_per_serving_json": json.dumps(
+                    {"kcal": 300, "protein_g": 6, "carbs_g": 60, "fat_g": 1}
+                ),
+            }
+        ]
+    )
+    return LocalRecipeIndex(
+        metadata=metadata,
+        embeddings=np.zeros((1, 384), dtype=np.float32),
+        manifest={"model": "test-model", "dims": 384, "count": 1},
+        encode_fn=lambda texts: np.ones((len(texts), 384), dtype=np.float32),
+        expected_model="test-model",
+        expected_dims=384,
+    )
 
 
 def _row(recipe_id: str, title: str, course: str, price: float) -> dict:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from gamito.models.meal import Meal, MealType, ShoppingList
+from gamito.models.meal import Meal, MealSource, MealType, ShoppingList
 from gamito.rendering.labels import labels_for, slot_label
 
 
@@ -38,6 +38,8 @@ def render_compact_plan(
             suffix = ""
             if meal.meal_type == MealType.LEFTOVER:
                 suffix = f" ({labels['leftover']})"
+            elif meal.source == MealSource.CUSTOM:
+                suffix = " - your recipe"
             lines.append(
                 f"- {slot_label(meal.meal_slot, language)}: "
                 f"{meal.recipe_title}{suffix} - {meal.estimated_cost_total_eur:.2f} EUR"

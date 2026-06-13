@@ -21,6 +21,15 @@ from gamito.models.meal import (
 from gamito.models.planning import PlanType
 
 
+class LabelTakenError(ValueError):
+    """Raised when a profile already has the requested plan label."""
+
+    def __init__(self, label: str, existing_plan_id: str | None) -> None:
+        super().__init__(label)
+        self.label = label
+        self.existing_plan_id = existing_plan_id
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -219,15 +228,32 @@ def label_plan(
         raise KeyError(plan_id)
     new_label = label if label is not None else current["label"]
     new_favorite = int(is_favorite) if is_favorite is not None else current["is_favorite"]
-    with conn:
-        conn.execute(
-            """
-            UPDATE meal_plans
-            SET label = ?, is_favorite = ?, updated_at = ?
-            WHERE plan_id = ?
-            """,
-            (new_label, new_favorite, _now(), plan_id),
-        )
+    try:
+        with conn:
+            conn.execute(
+                """
+                UPDATE meal_plans
+                SET label = ?, is_favorite = ?, updated_at = ?
+                WHERE plan_id = ?
+                """,
+                (new_label, new_favorite, _now(), plan_id),
+            )
+    except sqlite3.IntegrityError as exc:
+        existing = None
+        if new_label:
+            row = conn.execute(
+                """
+                SELECT plan_id
+                FROM meal_plans
+                WHERE profile_id = (
+                  SELECT profile_id FROM meal_plans WHERE plan_id = ?
+                )
+                AND label = ?
+                """,
+                (plan_id, new_label),
+            ).fetchone()
+            existing = None if row is None else str(row["plan_id"])
+        raise LabelTakenError(str(new_label), existing) from exc
     return {"plan_id": plan_id, "label": new_label, "is_favorite": bool(new_favorite)}
 
 
@@ -251,11 +277,20 @@ def list_plans(
     rows = conn.execute(
         f"""
         SELECT p.plan_id, p.label, p.is_favorite, p.num_days, p.meals_per_day,
-               p.total_cost_eur, p.created_at, avg(r.rating) AS avg_meal_rating
+               p.total_cost_eur, p.created_at,
+               (
+                 SELECT avg(r.rating)
+                 FROM meal_ratings r
+                 WHERE r.plan_id = p.plan_id
+               ) AS avg_meal_rating,
+               (
+                 SELECT group_concat(m.recipe_title, ', ')
+                 FROM plan_meals m
+                 WHERE m.plan_id = p.plan_id
+                 ORDER BY m.day_number, m.meal_slot
+               ) AS plan_summary
         FROM meal_plans p
-        LEFT JOIN meal_ratings r ON r.plan_id = p.plan_id
         WHERE {" AND ".join(clauses)}
-        GROUP BY p.plan_id
         ORDER BY p.created_at DESC
         LIMIT ?
         """,
