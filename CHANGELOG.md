@@ -9,11 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Assignment node prefers candidates near 80% of each meal's budget allocation, with a larger candidate pool (50) and seed-deterministic budget-aware scoring.
+- Assignment node supplements semantic retrieval with price-fit candidates and
+  weights budget fit more heavily, targeting roughly 80% utilization of each
+  non-leftover meal allocation.
+- Shopping totals fall back to selected recipe costs when canonical pricing
+  lookup tables are missing or empty, avoiding undercounted budget summaries on
+  small deploys.
 
 ### Added
 
-- Tests for budget-target preference, price-cap preservation, and seed determinism in assignment.
+- Tests for budget-target preference, price-cap preservation, seed determinism,
+  real-index budget utilization, and empty canonical pricing fallback.
 
 [Unreleased]: https://github.com/nerkyzas157/gamito/compare/v0.6.0...HEAD
 [0.6.0]: https://github.com/nerkyzas157/gamito/compare/v0.5.0...v0.6.0

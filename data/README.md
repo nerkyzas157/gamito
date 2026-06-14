@@ -56,3 +56,9 @@ restored or regenerated:
 - `lookups/canonical_ingredients.parquet`
 - `lookups/parsed_ingredients.parquet`
 - `lookups/usda_nutrients.parquet`
+
+When `lookups/` is empty, planning still uses recipe-level prices from
+`index/metadata.parquet` for assignment. Shopping totals fall back to the
+selected recipes' estimated total costs when ingredient-level pricing would
+undercount the plan, so small deploys can produce useful budget summaries with
+only `data/index/` present.

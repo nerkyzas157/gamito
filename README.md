@@ -46,8 +46,8 @@ What the MCP + skill pairing is built to do:
 - **Stay allergy- and diet-safe** — allergies, dislikes, and dietary preferences
   are stored per profile and applied as hard filters to every plan and swap.
 - **Respect a food budget** — every plan is cost-checked against the stated
-  budget; the engine reports the minimum feasible budget when constraints are
-  too tight.
+  budget, and assignment actively targets useful budget utilization instead of
+  simply picking the cheapest matching recipes.
 - **Swap, rescale, and refine meals** — "Make Tuesday dinner cheaper / vegan /
   faster" or "scale Friday up to 4 servings" without rebuilding the plan.
 - **Generate shopping lists with pantry awareness** — items are split into
@@ -201,6 +201,22 @@ data/           recipe dataset, prebuilt index, lookups
 docs/           retrieval eval baseline
 tests/          local unittest suite
 ```
+
+## Budget And Pricing Behavior
+
+Gamito allocates the requested budget across meal slots before recipe
+assignment. Each non-leftover slot targets roughly 80% of its allocation, then
+combines semantic relevance with price fit so the plan stays realistic for the
+requested budget. To avoid cheap recipes dominating higher-budget plans, the
+assignment node supplements semantic retrieval results with filtered recipes
+ranked by closeness to the slot's target cost.
+
+Shopping totals are estimated from canonical ingredient pricing when the local
+lookup tables in `data/lookups/` are available. If those lookup tables are
+missing or empty, Gamito falls back to the selected recipes'
+`estimated_cost_total_eur` values whenever ingredient-level pricing would
+undercount the plan. This keeps budget summaries useful on small deploys that
+ship only `data/index/`.
 
 ## Development
 
