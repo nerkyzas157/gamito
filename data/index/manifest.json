@@ -1,8 +1,8 @@
 {
-  "built_at_utc": "2026-06-13T20:29:48.796700+00:00",
-  "count": 14619,
+  "built_at_utc": "2026-06-14T14:37:01.624768+00:00",
+  "count": 14583,
   "dataset_path": "data/recipes_dataset.csv",
-  "dataset_sha256": "b8040e9e7b904f39d48385bfe5f24ebe97e4a5cc7883066ff9c52009b8cd746e",
+  "dataset_sha256": "284deec2fcc92cddb2c5e6dd6b05e9d1fb3070f7c3bc27643b264f78c555072f",
   "dims": 384,
   "feature_coverage_min": null,
   "model": "BAAI/bge-small-en-v1.5"
