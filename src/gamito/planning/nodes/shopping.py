@@ -188,7 +188,7 @@ def build_shopping_list(
         2,
     )
     total_estimate = item_total
-    if canonical_lookup is None and fallback_total > item_total:
+    if _should_use_recipe_cost_fallback(canonical_lookup) and fallback_total > item_total:
         total_estimate = fallback_total
 
     return ShoppingList(
@@ -196,6 +196,12 @@ def build_shopping_list(
         pantry_items=pantry_items,
         total_estimated_cost_eur=total_estimate,
     )
+
+
+def _should_use_recipe_cost_fallback(
+    canonical_lookup: CanonicalPriceLookup | None,
+) -> bool:
+    return canonical_lookup is None or not canonical_lookup.is_loaded
 
 
 def _coerce_user_context(value: Any) -> UserContext:

@@ -41,7 +41,9 @@ _DIETARY_FLAG_COLUMNS = (
     "is_fish_free",
 )
 TARGET_BUDGET_UTILIZATION = 0.80
-BUDGET_FIT_SCORE_WEIGHT = 0.30
+RELEVANCE_SCORE_WEIGHT = 0.30
+BUDGET_SCORE_WEIGHT = 0.70
+BUDGET_CANDIDATE_SUPPLEMENT_SIZE = 75
 
 
 class AssignmentError(RuntimeError):
@@ -129,6 +131,21 @@ class AssignmentNode:
             for allocation in allocations
         ]
         pools = self._search_many_with_relaxation(queries, contexts)
+        pools = [
+            _merge_candidate_pools(
+                semantic,
+                self._recipe_index.candidates_by_price_fit(
+                    search_ctx,
+                    target_total_cost=round(
+                        allocation.budget_eur * TARGET_BUDGET_UTILIZATION,
+                        2,
+                    ),
+                    servings=_source_servings(allocation, leftover_counts),
+                    k=BUDGET_CANDIDATE_SUPPLEMENT_SIZE,
+                ),
+            )
+            for allocation, semantic, search_ctx in zip(allocations, pools, contexts, strict=True)
+        ]
 
         used_recipe_ids = set(already_used_recipe_ids)
         assigned: list[Meal] = []
@@ -240,24 +257,48 @@ def _budget_aware_score_order(
 ) -> list[RecipeCandidate]:
     ordered = _stable_score_order(candidates, rng)
     target_cost = round(allocation.budget_eur * TARGET_BUDGET_UTILIZATION, 2)
-    if target_cost <= 0 or servings <= 0:
+    if target_cost <= 0 or servings <= 0 or not ordered:
         return ordered
-    return sorted(
-        ordered,
-        key=lambda candidate: _budget_adjusted_score(candidate, target_cost, servings),
-        reverse=True,
-    )
+
+    scores = [candidate.score for candidate in ordered]
+    min_score = min(scores)
+    max_score = max(scores)
+    score_span = max_score - min_score
+
+    def combined_score(candidate: RecipeCandidate) -> float:
+        if score_span > 0:
+            relevance = (candidate.score - min_score) / score_span
+        else:
+            relevance = 1.0
+        total_cost = _price_per_serving(candidate.metadata) * servings
+        distance_ratio = abs(total_cost - target_cost) / target_cost
+        fit_score = max(0.0, 1.0 - min(distance_ratio, 1.0))
+        return (RELEVANCE_SCORE_WEIGHT * relevance) + (BUDGET_SCORE_WEIGHT * fit_score)
+
+    return sorted(ordered, key=combined_score, reverse=True)
 
 
-def _budget_adjusted_score(
-    candidate: RecipeCandidate,
-    target_cost: float,
-    servings: int,
-) -> float:
-    total_cost = _price_per_serving(candidate.metadata) * servings
-    distance_ratio = abs(total_cost - target_cost) / target_cost
-    fit_score = max(0.0, 1.0 - min(distance_ratio, 1.0))
-    return candidate.score + (BUDGET_FIT_SCORE_WEIGHT * fit_score)
+def _merge_candidate_pools(
+    semantic: list[RecipeCandidate],
+    budget: list[RecipeCandidate],
+) -> list[RecipeCandidate]:
+    """Keep semantic hits and add price-targeted recipes missing from retrieval."""
+
+    baseline_score = min((candidate.score for candidate in semantic), default=0.0)
+    merged: dict[str, RecipeCandidate] = {
+        candidate.recipe_id: candidate for candidate in semantic
+    }
+    for candidate in budget:
+        if candidate.recipe_id in merged:
+            continue
+        merged[candidate.recipe_id] = RecipeCandidate(
+            recipe_id=candidate.recipe_id,
+            title=candidate.title,
+            score=baseline_score,
+            metadata=candidate.metadata,
+            relaxed_constraints=candidate.relaxed_constraints,
+        )
+    return list(merged.values())
 
 
 def _pick_distinct_candidate(

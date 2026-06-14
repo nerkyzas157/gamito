@@ -134,6 +134,46 @@ class LocalRecipeIndex:
             expected_dims=expected_dims,
         )
 
+    def candidates_by_price_fit(
+        self,
+        ctx: RecipeSearchContext | Any,
+        *,
+        target_total_cost: float,
+        servings: int,
+        k: int = 50,
+        include_custom: bool = True,
+    ) -> list[RecipeCandidate]:
+        """Return filtered recipes ranked by closeness to a target slot cost."""
+
+        if k <= 0 or target_total_cost <= 0 or servings <= 0:
+            return []
+        self._refresh_custom_if_needed()
+
+        metadata = self.metadata
+        if not include_custom and "source" in metadata.columns:
+            metadata = metadata[metadata["source"] != "custom"]
+        outcome = apply_filters_with_relaxation(
+            metadata,
+            RecipeSearchContext.from_context(ctx),
+        )
+        if outcome.candidates.empty:
+            return []
+
+        rows = outcome.candidates.copy()
+        totals = rows.apply(
+            lambda row: _price_per_serving_from_metadata(row.to_dict()) * servings,
+            axis=1,
+        )
+        ordered = totals.sub(target_total_cost).abs().sort_values().index[:k]
+        return [
+            self._candidate_from_row(
+                rows.loc[int(row_idx)],
+                0.0,
+                outcome.relaxed_constraints,
+            )
+            for row_idx in ordered
+        ]
+
     def search(
         self,
         query: str,
@@ -318,6 +358,29 @@ def _with_cached_filter_sets(metadata: pd.DataFrame) -> pd.DataFrame:
                 lambda values: frozenset(_normalise_list(values))
             )
     return cached
+
+
+def _price_per_serving_from_metadata(metadata: dict[str, Any]) -> float:
+    explicit = metadata.get("price_per_serving_eur")
+    if explicit is not None:
+        try:
+            parsed = float(explicit)
+        except (TypeError, ValueError):
+            parsed = None
+        else:
+            if parsed == parsed:
+                return max(parsed, 0.0)
+    total = metadata.get("price_total_eur") or metadata.get("cost_total_eur")
+    servings = metadata.get("est_servings") or metadata.get("servings")
+    if total is not None and servings:
+        try:
+            servings_value = float(servings)
+            total_value = float(total)
+        except (TypeError, ValueError):
+            return 0.0
+        if servings_value > 0:
+            return max(total_value / servings_value, 0.0)
+    return 0.0
 
 
 def _normalise_list(values: Any) -> tuple[str, ...]:

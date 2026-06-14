@@ -235,6 +235,41 @@ class PlanningCoreTests(unittest.TestCase):
             second["meals_by_key"]["day_1:dinner"].recipe_id,
         )
 
+    def test_assignment_utilizes_budget_on_real_index(self) -> None:
+        index = LocalRecipeIndex.load(
+            Path(__file__).resolve().parents[1] / "data" / "index",
+            encode_fn=lambda texts: np.random.default_rng(0).normal(
+                size=(len(texts), 384)
+            ).astype(np.float32),
+            expected_model="BAAI/bge-small-en-v1.5",
+            expected_dims=384,
+        )
+        for budget in (100.0, 200.0):
+            config = PlanConfig(
+                total_budget_eur=budget,
+                servings=2,
+                num_days=5,
+                meals_per_day=2,
+            )
+            ctx = UserContext(language="en", leftovers_ok=True, meal_prep_ok=True)
+            plan = run_planning_graph(
+                plan_config=config,
+                user_context=ctx,
+                recipe_index=index,
+                seed=1337,
+            )
+            meal_cost = sum(
+                meal.estimated_cost_total_eur
+                for meal in plan.meals
+                if meal.meal_type != MealType.LEFTOVER
+            )
+            utilization = meal_cost / budget
+            self.assertGreaterEqual(
+                utilization,
+                0.65,
+                f"expected >=65% meal-cost utilization for {budget} EUR budget, got {utilization:.1%}",
+            )
+
 
 def _fake_index(encode_calls: list[list[str]] | None = None) -> LocalRecipeIndex:
     rows = []

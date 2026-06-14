@@ -133,6 +133,18 @@ class BuildShoppingListPantryTests(unittest.TestCase):
 
         self.assertEqual(sl.total_estimated_cost_eur, 6.0)
 
+    def test_recipe_estimate_is_used_when_canonical_lookup_is_empty(self) -> None:
+        from gamito.pricing.canonical_pricing import CanonicalPriceLookup
+
+        sl = build_shopping_list(
+            [_build_meal()],
+            price_lookup={"chicken": 1.0},
+            canonical_lookup=CanonicalPriceLookup(prices={}, parsed_to_canonical={}),
+            pantry_canonicals=[],
+        )
+
+        self.assertEqual(sl.total_estimated_cost_eur, 6.0)
+
 
 class ShoppingListNodeIntegrationTests(unittest.TestCase):
     def test_node_passes_pantry_canonicals_through(self) -> None:
