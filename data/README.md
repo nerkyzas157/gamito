@@ -1,25 +1,58 @@
-# Data Salvage Notes
+# Data Directory
 
-Copied from `/home/nerkyzas/Desktop/projects/gamito_mvp` during Phase G0:
+This directory contains the local assets needed by Gamito's deterministic
+retrieval, pricing, and pantry layers. For deploys to small VPS instances, copy
+this whole directory instead of rebuilding the retrieval index on the server.
 
-- `recipes_dataset.csv` — currently 14,619 recipes, 36 columns, ≈26 MB.
+## Current contents
 
-Dataset notes:
+- `recipes_dataset.csv` — 14,619 recipes, 36 columns, approximately 26 MB.
+- `index/` — prebuilt retrieval index generated from `recipes_dataset.csv` with
+  `BAAI/bge-small-en-v1.5`.
+- `index/embeddings.npy` — 384-dimensional recipe embeddings.
+- `index/metadata.parquet` — normalized recipe metadata used for hard filters.
+- `index/manifest.json` — index provenance, including dataset hash, model name,
+  embedding dimensions, and recipe count.
+- `lookups/` — reserved for pricing and pantry lookup artifacts.
+- `provenance/` — reserved for source/provenance notes for auxiliary artifacts.
 
-- List-like columns are not fully uniform: `cuisine_list`, `ingredients`,
-  `directions`, and `kitchen_tools` are JSON arrays, while `course_list` is a
-  Python literal list string in the current file.
-- G1 should normalize `total_time` to `total_time_min`, `ingredients` to
-  `ingredients_json`, and `directions` to `directions_json` when writing
-  `metadata.parquet`.
+## Deployment note
 
-Expected by the G0 salvage manifest but not present in the source tree searched:
+The index build is intentionally offline and deterministic, but it is
+resource-heavy. Running `uv run python scripts/build_local_index.py` directly on
+a 2 vCPU / 4 GB VPS can saturate memory and swap, especially if duplicate builds
+are started. Prefer this workflow:
+
+```bash
+# On a workstation or another machine that already has data/index:
+rsync -az --delete ./data/ hermes:/home/nerkyzas/projects/gamito/data/
+```
+
+After copying, verify that the deploy checkout has:
+
+```bash
+ls data/index
+# embeddings.npy  manifest.json  metadata.parquet
+```
+
+## Dataset notes
+
+- `recipes_dataset.csv` was copied from
+  `/home/nerkyzas/Desktop/projects/gamito_mvp` during Phase G0.
+- List-like source columns are not fully uniform: `cuisine_list`,
+  `ingredients`, `directions`, and `kitchen_tools` are JSON arrays, while
+  `course_list` is a Python literal list string in the current file.
+- The index build normalizes fields such as `total_time` to `total_time_min`,
+  `ingredients` to `ingredients_json`, and `directions` to `directions_json`
+  before writing `metadata.parquet`.
+
+## Auxiliary lookup status
+
+Pricing and pantry tests use fixture lookups until those parquet artifacts are
+restored or regenerated:
 
 - `lookups/canonical_prices.parquet`
 - `lookups/parsed_name_to_canonical.parquet`
 - `lookups/canonical_ingredients.parquet`
 - `lookups/parsed_ingredients.parquet`
 - `lookups/usda_nutrients.parquet`
-
-Pricing and pantry tests use fixture lookups until those parquet artifacts are
-restored or regenerated in a later phase.

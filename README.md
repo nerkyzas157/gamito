@@ -103,14 +103,23 @@ uv sync
 # 3. Initialise the SQLite store (profiles, plans, pantry, recipes)
 uv run gamito db init
 
-# 4. Build the local recipe retrieval index (embeddings + metadata)
-uv run python scripts/build_local_index.py
+# 4. Ensure data/index exists before serving requests.
+# Prefer copying a prebuilt data/ directory from a workstation:
+rsync -az --delete /path/to/prebuilt/gamito/data/ ./data/
 ```
 
 The index build encodes the bundled `data/recipes_dataset.csv` with the
 `BAAI/bge-small-en-v1.5` model into `data/index/` (embeddings, metadata, and a
 manifest). It is resumable — re-run the command to continue an interrupted
-build.
+build — but it is CPU/RAM intensive enough to overwhelm a small VPS. For
+low-memory hosts, build once on a stronger machine and copy the whole `data/`
+folder to the deploy checkout instead of running the builder in production.
+
+If you do need to rebuild locally:
+
+```bash
+uv run python scripts/build_local_index.py
+```
 
 ### Optional: seed a demo profile and plan
 
