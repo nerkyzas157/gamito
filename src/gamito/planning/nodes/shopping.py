@@ -187,11 +187,14 @@ def build_shopping_list(
         ),
         2,
     )
+    total_estimate = item_total
+    if canonical_lookup is None and fallback_total > item_total:
+        total_estimate = fallback_total
 
     return ShoppingList(
         items=items,
         pantry_items=pantry_items,
-        total_estimated_cost_eur=item_total if item_total > 0 else fallback_total,
+        total_estimated_cost_eur=total_estimate,
     )
 
 

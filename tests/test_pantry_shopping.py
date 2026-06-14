@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from unittest.mock import patch
 
 from gamito.planning.nodes.shopping import ShoppingListNode, build_shopping_list
 from gamito.models.meal import Ingredient, Meal, MealSlot, ShoppingItem
@@ -117,6 +118,20 @@ class BuildShoppingListPantryTests(unittest.TestCase):
         item_names = {item.name.lower() for item in sl.items}
         self.assertIn("chicken", item_names)
         self.assertEqual(sl.pantry_items, [])
+
+    def test_recipe_estimate_is_used_when_legacy_pricing_undercounts(self) -> None:
+        with patch(
+            "gamito.planning.nodes.shopping.get_canonical_price_lookup",
+            side_effect=FileNotFoundError,
+        ):
+            sl = build_shopping_list(
+                [_build_meal()],
+                price_lookup={"chicken": 1.0},
+                canonical_lookup=None,
+                pantry_canonicals=[],
+            )
+
+        self.assertEqual(sl.total_estimated_cost_eur, 6.0)
 
 
 class ShoppingListNodeIntegrationTests(unittest.TestCase):

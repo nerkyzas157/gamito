@@ -41,7 +41,7 @@ _DIETARY_FLAG_COLUMNS = (
     "is_fish_free",
 )
 TARGET_BUDGET_UTILIZATION = 0.80
-BUDGET_FIT_SCORE_WEIGHT = 0.08
+BUDGET_FIT_SCORE_WEIGHT = 0.30
 
 
 class AssignmentError(RuntimeError):
@@ -55,7 +55,7 @@ class AssignmentNode:
         self,
         recipe_index: LocalRecipeIndex,
         *,
-        candidate_pool_size: int = 50,
+        candidate_pool_size: int = 250,
     ) -> None:
         self._recipe_index = recipe_index
         self._candidate_pool_size = candidate_pool_size

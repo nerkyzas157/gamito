@@ -156,7 +156,8 @@ class PlanningCoreTests(unittest.TestCase):
             [
                 _row("cheap", "Cheap Main", "main", 1.0),
                 _row("target", "Target Main", "main", 4.0),
-            ]
+            ],
+            embeddings=np.array([[1.0, 0.0, 0.0], [0.85, 0.0, 0.0]], dtype=np.float32),
         )
 
         result = __import__("asyncio").run(AssignmentNode(index)(state))
@@ -247,15 +248,16 @@ def _fake_index(encode_calls: list[list[str]] | None = None) -> LocalRecipeIndex
 def _index_from_rows(
     rows: list[dict],
     encode_calls: list[list[str]] | None = None,
+    embeddings: np.ndarray | None = None,
 ) -> LocalRecipeIndex:
     metadata = pd.DataFrame(rows)
-    embeddings = np.ones((len(metadata), 3), dtype=np.float32)
+    embeddings = embeddings if embeddings is not None else np.ones((len(metadata), 3), dtype=np.float32)
     manifest = {"model": "test-model", "dims": 3, "count": len(metadata)}
 
     def encode_fn(texts: list[str]) -> np.ndarray:
         if encode_calls is not None:
             encode_calls.append(texts)
-        return np.ones((len(texts), 3), dtype=np.float32)
+        return np.tile(np.array([[1.0, 0.0, 0.0]], dtype=np.float32), (len(texts), 1))
 
     return LocalRecipeIndex(
         metadata=metadata,
