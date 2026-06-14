@@ -5,14 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Assignment node prefers candidates near 80% of each meal's budget allocation, with a larger candidate pool (50) and seed-deterministic budget-aware scoring.
 
 ### Added
 
-- Bootstrap Gamito local repository with project scaffolding (`pyproject.toml`, `Makefile`, `.gitignore`).
-- Salvaged local recipe data (`data/recipes_dataset.csv`) from the legacy Gamito MVP.
-- Ported deterministic local core modules under `src/gamito` with no cloud dependencies.
-- Architecture and task specification documents for the G0–G7 implementation phases.
-- Local test suite via `scripts/test` and `make test`.
+- Tests for budget-target preference, price-cap preservation, and seed determinism in assignment.
 
 [Unreleased]: https://github.com/nerkyzas157/gamito/compare/v0.6.0...HEAD
 [0.6.0]: https://github.com/nerkyzas157/gamito/compare/v0.5.0...v0.6.0
@@ -47,3 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add SQLite persistence and profile context
 
 ## v0.2.0 (2026-06-13)
+
+## v0.1.0 (2026-06-13)
+
+### Added
+
+- Bootstrap Gamito local repository with project scaffolding (`pyproject.toml`, `Makefile`, `.gitignore`).
+- Salvaged local recipe data (`data/recipes_dataset.csv`) from the legacy Gamito MVP.
+- Ported deterministic local core modules under `src/gamito` with no cloud dependencies.
+- Architecture and task specification documents for the G0–G7 implementation phases.
+- Local test suite via `scripts/test` and `make test`.

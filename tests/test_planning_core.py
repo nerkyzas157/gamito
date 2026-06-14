@@ -139,6 +139,101 @@ class PlanningCoreTests(unittest.TestCase):
         self.assertEqual(len(encode_calls[0]), 3)
         self.assertEqual(len(result["meals_by_key"]), 3)
 
+    def test_assignment_prefers_candidate_near_budget_target(self) -> None:
+        config = PlanConfig(total_budget_eur=10, servings=2, num_days=1, meals_per_day=1)
+        ctx = UserContext()
+        state = {
+            "plan_config": config,
+            "user_context": ctx,
+            "budget_plan": __import__(
+                "gamito.planning.nodes.budget",
+                fromlist=["allocate_budget_deterministically"],
+            ).allocate_budget_deterministically(config, ctx),
+            "excluded_recipe_ids": [],
+            "seed": 1,
+        }
+        index = _index_from_rows(
+            [
+                _row("cheap", "Cheap Main", "main", 1.0),
+                _row("target", "Target Main", "main", 4.0),
+            ]
+        )
+
+        result = __import__("asyncio").run(AssignmentNode(index)(state))
+
+        meal = result["meals_by_key"]["day_1:dinner"]
+        self.assertEqual(meal.recipe_id, "target")
+        self.assertAlmostEqual(meal.estimated_cost_total_eur, 8.0)
+
+    def test_assignment_preserves_price_cap(self) -> None:
+        config = PlanConfig(total_budget_eur=10, servings=2, num_days=1, meals_per_day=1)
+        ctx = UserContext()
+        state = {
+            "plan_config": config,
+            "user_context": ctx,
+            "budget_plan": __import__(
+                "gamito.planning.nodes.budget",
+                fromlist=["allocate_budget_deterministically"],
+            ).allocate_budget_deterministically(config, ctx),
+            "excluded_recipe_ids": [],
+            "seed": 1,
+        }
+        index = _index_from_rows(
+            [
+                _row("too_expensive", "Too Expensive Main", "main", 6.0),
+                _row("target", "Target Main", "main", 4.0),
+            ]
+        )
+
+        result = __import__("asyncio").run(AssignmentNode(index)(state))
+
+        meal = result["meals_by_key"]["day_1:dinner"]
+        self.assertEqual(meal.recipe_id, "target")
+        self.assertLessEqual(meal.estimated_cost_per_serving_eur, 5.0)
+
+    def test_budget_targeting_is_seed_deterministic(self) -> None:
+        config = PlanConfig(total_budget_eur=10, servings=2, num_days=1, meals_per_day=1)
+        ctx = UserContext()
+        budget_plan = __import__(
+            "gamito.planning.nodes.budget",
+            fromlist=["allocate_budget_deterministically"],
+        ).allocate_budget_deterministically(config, ctx)
+        index = _index_from_rows(
+            [
+                _row("cheap", "Cheap Main", "main", 1.0),
+                _row("target_a", "Target A Main", "main", 4.0),
+                _row("target_b", "Target B Main", "main", 4.0),
+            ]
+        )
+
+        first = __import__("asyncio").run(
+            AssignmentNode(index)(
+                {
+                    "plan_config": config,
+                    "user_context": ctx,
+                    "budget_plan": budget_plan,
+                    "excluded_recipe_ids": [],
+                    "seed": 42,
+                }
+            )
+        )
+        second = __import__("asyncio").run(
+            AssignmentNode(index)(
+                {
+                    "plan_config": config,
+                    "user_context": ctx,
+                    "budget_plan": budget_plan,
+                    "excluded_recipe_ids": [],
+                    "seed": 42,
+                }
+            )
+        )
+
+        self.assertEqual(
+            first["meals_by_key"]["day_1:dinner"].recipe_id,
+            second["meals_by_key"]["day_1:dinner"].recipe_id,
+        )
+
 
 def _fake_index(encode_calls: list[list[str]] | None = None) -> LocalRecipeIndex:
     rows = []
@@ -146,6 +241,13 @@ def _fake_index(encode_calls: list[list[str]] | None = None) -> LocalRecipeIndex
         rows.append(_row(f"b{idx}", f"Breakfast {idx}", "breakfast", 1.0))
     for idx in range(1, 12):
         rows.append(_row(f"m{idx}", f"Main {idx}", "main", 1.8))
+    return _index_from_rows(rows, encode_calls)
+
+
+def _index_from_rows(
+    rows: list[dict],
+    encode_calls: list[list[str]] | None = None,
+) -> LocalRecipeIndex:
     metadata = pd.DataFrame(rows)
     embeddings = np.ones((len(metadata), 3), dtype=np.float32)
     manifest = {"model": "test-model", "dims": 3, "count": len(metadata)}

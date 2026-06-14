@@ -40,6 +40,8 @@ _DIETARY_FLAG_COLUMNS = (
     "is_egg_free",
     "is_fish_free",
 )
+TARGET_BUDGET_UTILIZATION = 0.80
+BUDGET_FIT_SCORE_WEIGHT = 0.08
 
 
 class AssignmentError(RuntimeError):
@@ -53,7 +55,7 @@ class AssignmentNode:
         self,
         recipe_index: LocalRecipeIndex,
         *,
-        candidate_pool_size: int = 25,
+        candidate_pool_size: int = 50,
     ) -> None:
         self._recipe_index = recipe_index
         self._candidate_pool_size = candidate_pool_size
@@ -131,12 +133,12 @@ class AssignmentNode:
         used_recipe_ids = set(already_used_recipe_ids)
         assigned: list[Meal] = []
         for allocation, candidates in zip(allocations, pools, strict=True):
-            ordered = _stable_score_order(candidates, rng)
+            source_servings = _source_servings(allocation, leftover_counts)
+            ordered = _budget_aware_score_order(candidates, allocation, source_servings, rng)
             candidate = _pick_distinct_candidate(ordered, used_recipe_ids, excluded_recipe_ids)
             if candidate is None:
                 raise AssignmentError(f"no candidates for {allocation.key}")
             used_recipe_ids.add(candidate.recipe_id)
-            source_servings = _source_servings(allocation, leftover_counts)
             assigned.append(_candidate_to_meal(candidate, allocation, source_servings))
         return assigned
 
@@ -228,6 +230,34 @@ def _stable_score_order(
         else:
             ordered.extend(group)
     return ordered
+
+
+def _budget_aware_score_order(
+    candidates: list[RecipeCandidate],
+    allocation: BudgetMealAllocation,
+    servings: int,
+    rng: np.random.Generator,
+) -> list[RecipeCandidate]:
+    ordered = _stable_score_order(candidates, rng)
+    target_cost = round(allocation.budget_eur * TARGET_BUDGET_UTILIZATION, 2)
+    if target_cost <= 0 or servings <= 0:
+        return ordered
+    return sorted(
+        ordered,
+        key=lambda candidate: _budget_adjusted_score(candidate, target_cost, servings),
+        reverse=True,
+    )
+
+
+def _budget_adjusted_score(
+    candidate: RecipeCandidate,
+    target_cost: float,
+    servings: int,
+) -> float:
+    total_cost = _price_per_serving(candidate.metadata) * servings
+    distance_ratio = abs(total_cost - target_cost) / target_cost
+    fit_score = max(0.0, 1.0 - min(distance_ratio, 1.0))
+    return candidate.score + (BUDGET_FIT_SCORE_WEIGHT * fit_score)
 
 
 def _pick_distinct_candidate(
